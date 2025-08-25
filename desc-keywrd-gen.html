@@ -723,7 +723,7 @@
       try {
         console.log(`Sending ${multiFileInput.files.length} files to server...`);
         
-        const res = await fetch('http://localhost:8000/analyze-multiple-images', {
+        const res = await fetch('https://experiences-violence-raised-logic.trycloudflare.com/analyze-multiple-images', {
           method: 'POST',
           body: formData
         });
