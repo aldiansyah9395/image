@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Image Analyzer Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              300: '#a5b4fc',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+              900: '#312e81',
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'spin-slow': 'spin 2s linear infinite',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .drop-area {
+      border: 2px dashed #cbd5e1;
+      border-radius: 0.5rem;
+      transition: all 0.3s ease;
+    }
+    .drop-area.active {
+      border-color: #6366f1;
+      background-color: #eef2ff;
+    }
+    .image-preview {
+      max-height: 250px;
+      object-fit: contain;
+    }
+    .loader {
+      border-top-color: #6366f1;
+      -webkit-animation: spinner 1s linear infinite;
+      animation: spinner 1s linear infinite;
+    }
+    @-webkit-keyframes spinner {
+      0% { -webkit-transform: rotate(0deg); }
+      100% { -webkit-transform: rotate(360deg); }
+    }
+    @keyframes spinner {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .badge {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .tabs-header {
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+    .progress-bar {
+      transition: width 0.3s ease;
+    }
+    .file-status-badge {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+    .pulse-animation {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+
+  <div class="max-w-5xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    
+    <!-- Header -->
+    <div class="text-center mb-10">
+      <h1 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">
+        <span class="text-primary-600">AI</span> Image Analyzer Pro
+      </h1>
+      <p class="mt-3 max-w-2xl mx-auto text-gray-500 sm:mt-4">
+        Generate SEO-optimized descriptions and keywords for stock photo platforms
+      </p>
+    </div>
+
+    <!-- Mode Selector -->
+    <div class="mb-6 flex justify-center">
+      <div class="inline-flex rounded-md shadow-sm">
+        <button id="single-mode-btn" class="px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-l-md hover:bg-primary-700 focus:z-10 focus:outline-none">
+          Single Image
+        </button>
+        <button id="multi-mode-btn" class="px-4 py-2 text-sm font-medium bg-white text-gray-700 border-t border-b border-r border-gray-300 rounded-r-md hover:bg-gray-50 focus:z-10 focus:outline-none">
+          Multiple Images
+        </button>
+      </div>
+    </div>
+
+    <div class="bg-white shadow overflow-hidden rounded-lg divide-y divide-gray-200">
+      <!-- Upload Section -->
+      <div class="px-4 py-5 sm:p-6">
+        <!-- Single Image Mode -->
+        <div id="single-mode" class="flex flex-col md:flex-row gap-6">
+          
+          <!-- Left side: Upload controls -->
+          <div class="w-full md:w-1/2">
+            <div id="drop-area" class="drop-area flex flex-col items-center justify-center p-6 h-64 cursor-pointer">
+              <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+              <p class="text-gray-700 mb-2">Drag and drop your image here</p>
+              <p class="text-gray-500 text-sm mb-4">or</p>
+              <label for="image" class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition cursor-pointer">
+                Browse Files
+              </label>
+              <input type="file" id="image" name="image" accept="image/*" class="hidden" />
+            </div>
+            
+            <div class="mt-6">
+              <button id="analyze-btn" class="w-full bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-200 text-white font-medium py-3 px-4 rounded-lg transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <span id="btn-text">Upload & Analyze</span>
+                <span id="btn-loader" class="hidden ml-2 loader h-4 w-4 rounded-full border-2 border-t-2"></span>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Right side: Image preview -->
+          <div class="w-full md:w-1/2">
+            <div class="border rounded-lg bg-gray-50 h-64 flex items-center justify-center overflow-hidden">
+              <div id="preview-placeholder" class="text-center text-gray-400">
+                <i class="fas fa-image text-4xl mb-3"></i>
+                <p>Image preview will appear here</p>
+              </div>
+              <img id="image-preview" class="image-preview hidden w-full h-full" src="#" alt="Preview" />
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+              <span id="file-info"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multiple Images Mode -->
+        <div id="multi-mode" class="hidden">
+          <div id="multi-drop-area" class="drop-area flex flex-col items-center justify-center p-6 h-64 cursor-pointer">
+            <i class="fas fa-images text-4xl text-gray-400 mb-4"></i>
+            <p class="text-gray-700 mb-2">Drag and drop multiple images here</p>
+            <p class="text-gray-500 text-sm mb-4">or</p>
+            <label for="multi-image" class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition cursor-pointer">
+              Browse Files
+            </label>
+            <input type="file" id="multi-image" name="multi-image" accept="image/*" multiple class="hidden" />
+          </div>
+          
+          <div id="multi-preview-container" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <!-- Preview images will be added here -->
+          </div>
+          
+          <div class="mt-6">
+            <button id="analyze-multiple-btn" class="w-full bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-200 text-white font-medium py-3 px-4 rounded-lg transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              <span id="multi-btn-text">Upload & Analyze All Images</span>
+              <span id="multi-btn-loader" class="hidden ml-2 loader h-4 w-4 rounded-full border-2 border-t-2"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Queue Processing Status Section -->
+      <div id="queue-status" class="hidden px-4 py-5 sm:p-6 bg-blue-50">
+        <div class="flex items-center">
+          <div class="animate-spin-slow mr-3 h-5 w-5 text-primary-600">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-sm font-medium text-primary-800" id="queue-status-text">Processing images in queue...</h3>
+            <div class="mt-2">
+              <div class="bg-blue-100 rounded-full h-2.5">
+                <div id="queue-progress-bar" class="bg-primary-600 h-2.5 rounded-full progress-bar" style="width: 10%"></div>
+              </div>
+              <div class="flex justify-between mt-1">
+                <span class="text-xs text-primary-700" id="queue-file-status">Processing file 1 of 5</span>
+                <span class="text-xs text-primary-700" id="queue-progress-text">10%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mt-4 bg-white rounded-lg p-3 overflow-auto max-h-48" id="queue-details">
+          <!-- File status details will be shown here -->
+          <div class="animate-pulse">
+            <div class="h-4 bg-gray-200 rounded w-3/4 mb-2.5"></div>
+            <div class="h-4 bg-gray-200 rounded w-1/2 mb-2.5"></div>
+            <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Loading Section -->
+      <div id="loading" class="hidden px-4 py-10 sm:p-6 text-center">
+        <div class="inline-flex items-center px-4 py-2 rounded-full bg-primary-50 text-primary-700">
+          <div class="loader mr-3 h-5 w-5 rounded-full border-2 border-t-2"></div>
+          <span>Processing your image(s)...</span>
+        </div>
+      </div>
+
+      <!-- Results Section - Single Image -->
+      <div id="result" class="hidden px-4 py-5 sm:p-6">
+        <h3 class="text-lg font-medium text-gray-900 border-b pb-3">Analysis Results</h3>
+        
+        <div class="mt-4">
+          <h4 class="text-sm font-medium text-gray-700 uppercase tracking-wide">Description</h4>
+          <div class="mt-2 p-4 bg-gray-50 rounded-md">
+            <p id="description" class="text-gray-800"></p>
+            <button id="copy-desc" class="mt-3 inline-flex items-center text-sm text-primary-600 hover:text-primary-800">
+              <i class="far fa-copy mr-1"></i> Copy
+            </button>
+          </div>
+        </div>
+        
+        <div class="mt-6">
+          <h4 class="text-sm font-medium text-gray-700 uppercase tracking-wide">Keywords</h4>
+          <div class="mt-2 p-4 bg-gray-50 rounded-md">
+            <div id="keywords-container" class="flex flex-wrap gap-2"></div>
+            <button id="copy-keywords" class="mt-3 inline-flex items-center text-sm text-primary-600 hover:text-primary-800">
+              <i class="far fa-copy mr-1"></i> Copy All
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Results Section - Multiple Images -->
+      <div id="multi-results" class="hidden px-4 py-5 sm:p-6">
+        <h3 class="text-lg font-medium text-gray-900 border-b pb-3">Analysis Results</h3>
+        
+        <div class="tabs-header mt-4 border-b border-gray-200 overflow-x-auto">
+          <div id="image-tabs" class="flex">
+            <!-- Tabs will be added here -->
+          </div>
+        </div>
+        
+        <div id="tab-contents" class="mt-4">
+          <!-- Tab content will be added here -->
+        </div>
+      </div>
+    </div>
+    
+    <!-- Notification -->
+    <div id="notification" class="fixed bottom-4 right-4 p-4 rounded-md bg-green-100 text-green-700 shadow-lg transform translate-y-full transition-transform duration-300 flex items-center z-50">
+      <i class="fas fa-check-circle mr-2"></i>
+      <span id="notification-text">Copied to clipboard!</span>
+    </div>
+    
+    <footer class="mt-8 text-center text-sm text-gray-500">
+      <p>© 2025 AI Image Analyzer Pro | Powered by Gemini 2.0</p>
+    </footer>
+  </div>
+
+  <script>
+    // DOM elements - Single mode
+    const singleModeBtn = document.getElementById('single-mode-btn');
+    const multiModeBtn = document.getElementById('multi-mode-btn');
+    const singleMode = document.getElementById('single-mode');
+    const multiMode = document.getElementById('multi-mode');
+    const dropArea = document.getElementById('drop-area');
+    const fileInput = document.getElementById('image');
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const btnText = document.getElementById('btn-text');
+    const btnLoader = document.getElementById('btn-loader');
+    const previewPlaceholder = document.getElementById('preview-placeholder');
+    const imagePreview = document.getElementById('image-preview');
+    const fileInfo = document.getElementById('file-info');
+    const loading = document.getElementById('loading');
+    const result = document.getElementById('result');
+    const desc = document.getElementById('description');
+    const keywordsContainer = document.getElementById('keywords-container');
+    const copyDesc = document.getElementById('copy-desc');
+    const copyKeywords = document.getElementById('copy-keywords');
+    const notification = document.getElementById('notification');
+    
+    // DOM elements - Multiple mode
+    const multiDropArea = document.getElementById('multi-drop-area');
+    const multiFileInput = document.getElementById('multi-image');
+    const analyzeMultipleBtn = document.getElementById('analyze-multiple-btn');
+    const multiBtnText = document.getElementById('multi-btn-text');
+    const multiBtnLoader = document.getElementById('multi-btn-loader');
+    const multiPreviewContainer = document.getElementById('multi-preview-container');
+    const multiResults = document.getElementById('multi-results');
+    const imageTabs = document.getElementById('image-tabs');
+    const tabContents = document.getElementById('tab-contents');
+    
+    // DOM elements - Queue status
+    const queueStatus = document.getElementById('queue-status');
+    const queueStatusText = document.getElementById('queue-status-text');
+    const queueProgressBar = document.getElementById('queue-progress-bar');
+    const queueProgressText = document.getElementById('queue-progress-text');
+    const queueFileStatus = document.getElementById('queue-file-status');
+    const queueDetails = document.getElementById('queue-details');
+    
+    // Mode switching
+    singleModeBtn.addEventListener('click', function() {
+      singleModeBtn.classList.remove('bg-white', 'text-gray-700', 'border-t', 'border-b', 'border-r', 'border-gray-300');
+      singleModeBtn.classList.add('bg-primary-600', 'text-white');
+      
+      multiModeBtn.classList.remove('bg-primary-600', 'text-white');
+      multiModeBtn.classList.add('bg-white', 'text-gray-700', 'border-t', 'border-b', 'border-r', 'border-gray-300');
+      
+      singleMode.classList.remove('hidden');
+      multiMode.classList.add('hidden');
+      result.classList.add('hidden');
+      multiResults.classList.add('hidden');
+      queueStatus.classList.add('hidden');
+    });
+    
+    multiModeBtn.addEventListener('click', function() {
+      multiModeBtn.classList.remove('bg-white', 'text-gray-700', 'border-t', 'border-b', 'border-r', 'border-gray-300');
+      multiModeBtn.classList.add('bg-primary-600', 'text-white');
+      
+      singleModeBtn.classList.remove('bg-primary-600', 'text-white');
+      singleModeBtn.classList.add('bg-white', 'text-gray-700', 'border-t', 'border-b', 'border-r', 'border-gray-300');
+      
+      multiMode.classList.remove('hidden');
+      singleMode.classList.add('hidden');
+      result.classList.add('hidden');
+      multiResults.classList.add('hidden');
+      queueStatus.classList.add('hidden');
+    });
+    
+    // File drag and drop - Single mode
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropArea.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(eventName, unhighlight, false);
+    });
+    
+    function highlight() {
+      dropArea.classList.add('active');
+    }
+    
+    function unhighlight() {
+      dropArea.classList.remove('active');
+    }
+    
+    dropArea.addEventListener('drop', handleDrop, false);
+    
+    function handleDrop(e) {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      
+      if (files.length) {
+        fileInput.files = files;
+        handleFiles(files[0]);
+      }
+    }
+    
+    // Handle file selection - Single mode
+    fileInput.addEventListener('change', function() {
+      if (this.files.length) {
+        handleFiles(this.files[0]);
+      }
+    });
+    
+    function handleFiles(file) {
+      // Check if file is an image
+      if (!file.type.match('image.*')) {
+        showNotification('Please select an image file', 'error');
+        return;
+      }
+      
+      // Display file info
+      const size = (file.size / 1024 / 1024).toFixed(2);
+      fileInfo.textContent = `${file.name} (${size} MB)`;
+      
+      // Preview image
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imagePreview.src = e.target.result;
+        imagePreview.classList.remove('hidden');
+        previewPlaceholder.classList.add('hidden');
+      };
+      reader.readAsDataURL(file);
+      
+      // Enable analyze button
+      analyzeBtn.disabled = false;
+    }
+    
+    // File drag and drop - Multiple mode
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      multiDropArea.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+      multiDropArea.addEventListener(eventName, function() {
+        multiDropArea.classList.add('active');
+      }, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+      multiDropArea.addEventListener(eventName, function() {
+        multiDropArea.classList.remove('active');
+      }, false);
+    });
+    
+    multiDropArea.addEventListener('drop', handleMultiDrop, false);
+    
+    function handleMultiDrop(e) {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      
+      if (files.length) {
+        multiFileInput.files = files;
+        handleMultipleFiles(files);
+      }
+    }
+    
+    // Handle file selection - Multiple mode
+    multiFileInput.addEventListener('change', function() {
+      if (this.files.length) {
+        handleMultipleFiles(this.files);
+      }
+    });
+    
+    function handleMultipleFiles(files) {
+      // Clear previous previews
+      multiPreviewContainer.innerHTML = '';
+      
+      // Preview images
+      let validFiles = 0;
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Check if file is an image
+        if (!file.type.match('image.*')) {
+          continue;
+        }
+        
+        validFiles++;
+        
+        const previewWrapper = document.createElement('div');
+        previewWrapper.className = 'relative border rounded-md overflow-hidden h-32';
+        previewWrapper.setAttribute('data-filename', file.name);
+        
+        const img = document.createElement('img');
+        img.className = 'w-full h-full object-cover';
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+        
+        // Tambahkan status badge
+        const statusBadge = document.createElement('div');
+        statusBadge.className = 'file-status-badge bg-gray-200 text-gray-800';
+        statusBadge.textContent = 'Pending';
+        
+        previewWrapper.appendChild(img);
+        previewWrapper.appendChild(statusBadge);
+        multiPreviewContainer.appendChild(previewWrapper);
+      }
+      
+      // Enable analyze button if there are valid files
+      analyzeMultipleBtn.disabled = validFiles === 0;
+      
+      if (validFiles === 0) {
+        showNotification('Please select at least one image file', 'error');
+      }
+    }
+    
+    // Analyze button click - Single mode
+    analyzeBtn.addEventListener('click', async function() {
+      if (!fileInput.files.length) return;
+      
+      // Show loading state
+      btnText.textContent = 'Processing...';
+      btnLoader.classList.remove('hidden');
+      analyzeBtn.disabled = true;
+      loading.classList.remove('hidden');
+      result.classList.add('hidden');
+      
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      
+      try {
+        const res = await fetch('http://localhost:8000/analyze-image', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ detail: 'Unknown error' }));
+          throw new Error(errorData.detail || 'Failed to analyze image');
+        }
+        
+        const data = await res.json();
+        
+        // Display results
+        displayResults(data);
+      } catch (err) {
+        console.error('Error:', err);
+        showNotification(err.message, 'error');
+      } finally {
+        // Reset button state
+        btnText.textContent = 'Upload & Analyze';
+        btnLoader.classList.add('hidden');
+        analyzeBtn.disabled = false;
+        loading.classList.add('hidden');
+      }
+    });
+    
+    // Function to update preview status badges
+    function updatePreviewBadge(filename, status, isProcessing = false) {
+      const previewElement = [...multiPreviewContainer.children].find(
+        el => el.getAttribute('data-filename') === filename
+      );
+      
+      if (!previewElement) return;
+      
+      const statusBadge = previewElement.querySelector('.file-status-badge');
+      if (!statusBadge) return;
+      
+      // Reset classes
+      statusBadge.className = 'file-status-badge';
+      
+      switch(status) {
+        case 'pending':
+          statusBadge.classList.add('bg-gray-200', 'text-gray-800');
+          statusBadge.textContent = 'Pending';
+          break;
+        case 'processing':
+          statusBadge.classList.add('bg-blue-200', 'text-blue-800', isProcessing ? 'pulse-animation' : '');
+          statusBadge.textContent = 'Processing';
+          break;
+        case 'completed':
+          statusBadge.classList.add('bg-green-200', 'text-green-800');
+          statusBadge.textContent = 'Completed';
+          break;
+        case 'error':
+          statusBadge.classList.add('bg-red-200', 'text-red-800');
+          statusBadge.textContent = 'Error';
+          break;
+      }
+    }
+    
+    // Function to poll queue status
+    async function pollQueueStatus(queueId) {
+      try {
+        const res = await fetch(`http://localhost:8000/queue-status/${queueId}`);
+        if (!res.ok) {
+          throw new Error('Failed to get queue status');
+        }
+        
+        const data = await res.json();
+        
+        // Update UI with current status
+        updateQueueStatusUI(data);
+        
+        // If processing is still ongoing, poll again after a delay
+        if (data.status !== 'completed' && data.status !== 'error') {
+          setTimeout(() => pollQueueStatus(queueId), 1000);
+        } else {
+          // Processing completed, show results
+          if (data.status === 'completed' && data.results) {
+            displayMultipleResults(data.results);
+            queueStatus.classList.add('hidden');
+          } else if (data.status === 'error') {
+            showNotification(data.error || 'An error occurred during processing', 'error');
+            queueStatus.classList.add('hidden');
+          }
+        }
+        
+      } catch (error) {
+        console.error('Error polling queue status:', error);
+        showNotification('Error checking processing status', 'error');
+      }
+    }
+    
+    // Function to update queue status UI
+    function updateQueueStatusUI(status) {
+      // Update progress bar
+      queueProgressBar.style.width = `${status.progress}%`;
+      queueProgressText.textContent = `${status.progress}%`;
+      
+      // Update file status text
+      if (status.current_file && status.total_files) {
+        queueFileStatus.textContent = `Processing file ${status.current_file} of ${status.total_files}`;
+        
+        // Update preview badges
+        if (status.current_job) {
+          const currentJobId = status.current_job;
+          const currentFilename = status.current_job_filename;
+          
+          // Set all files as pending or completed based on their position
+          const fileElements = multiPreviewContainer.children;
+          for (let i = 0; i < fileElements.length; i++) {
+            const filename = fileElements[i].getAttribute('data-filename');
+            if (i + 1 < status.current_file) {
+              updatePreviewBadge(filename, 'completed');
+            } else if (i + 1 === status.current_file) {
+              updatePreviewBadge(filename, 'processing', true);
+            } else {
+              updatePreviewBadge(filename, 'pending');
+            }
+          }
+        }
+      }
+      
+      // Update queue status text based on status
+      if (status.status === 'initializing') {
+        queueStatusText.textContent = 'Initializing processing...';
+      } else if (status.status === 'completed') {
+        queueStatusText.textContent = 'Processing complete!';
+      } else if (status.status === 'error') {
+        queueStatusText.textContent = 'Error processing images';
+      } else {
+        queueStatusText.textContent = `Processing images in queue... (${status.progress}%)`;
+      }
+      
+      // Update queue details
+      updateQueueDetails(status);
+    }
+    
+    // Function to update queue details section
+    function updateQueueDetails(status) {
+      // If we're in a completed state with results, don't update the details
+      if (status.status === 'completed' && status.results) return;
+      
+      let detailsHTML = '';
+      
+      if (status.status === 'initializing') {
+        detailsHTML = `
+          <div class="text-sm text-gray-600">
+            <p>Preparing to process ${status.total_files} images...</p>
+          </div>
+        `;
+      } else if (status.current_file && status.total_files) {
+        detailsHTML = `
+          <div class="text-sm text-gray-600">
+            <p class="font-medium">Queue Progress:</p>
+            <p>• Processing image ${status.current_file} of ${status.total_files}</p>
+            <p>• Overall progress: ${status.progress}%</p>
+          </div>
+        `;
+      }
+      
+      queueDetails.innerHTML = detailsHTML;
+    }
+    
+    // Analyze button click - Multiple mode
+    analyzeMultipleBtn.addEventListener('click', async function() {
+      if (!multiFileInput.files.length) return;
+      
+      // Show loading state
+      multiBtnText.textContent = 'Processing...';
+      multiBtnLoader.classList.remove('hidden');
+      analyzeMultipleBtn.disabled = true;
+      queueStatus.classList.remove('hidden');
+      multiResults.classList.add('hidden');
+      
+      // Reset queue status UI
+      queueProgressBar.style.width = '0%';
+      queueProgressText.textContent = '0%';
+      queueStatusText.textContent = 'Starting analysis...';
+      queueDetails.innerHTML = `
+        <div class="animate-pulse">
+          <div class="h-4 bg-gray-200 rounded w-3/4 mb-2.5"></div>
+          <div class="h-4 bg-gray-200 rounded w-1/2 mb-2.5"></div>
+          <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+        </div>
+      `;
+      
+      // Set all previews to pending
+      Array.from(multiFileInput.files).forEach(file => {
+        updatePreviewBadge(file.name, 'pending');
+      });
+      
+      const formData = new FormData();
+      
+      // Add each file to the formData
+      Array.from(multiFileInput.files).forEach(file => {
+        formData.append('files', file);
+      });
+      
+      try {
+        console.log(`Sending ${multiFileInput.files.length} files to server...`);
+        
+        const res = await fetch('http://localhost:8000/analyze-multiple-images', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ detail: 'Unknown error' }));
+          throw new Error(errorData.detail || `Server responded with status ${res.status}`);
+        }
+        
+        const data = await res.json();
+        console.log('Queue started:', data);
+        
+        if (data.queue_id) {
+          // Start polling for status updates
+          pollQueueStatus(data.queue_id);
+        } else {
+          throw new Error('No queue ID received from server');
+        }
+      } catch (err) {
+        console.error('Error during upload:', err);
+        showNotification(err.message, 'error');
+        
+        // Reset UI
+        queueStatus.classList.add('hidden');
+        multiBtnText.textContent = 'Upload & Analyze All Images';
+        multiBtnLoader.classList.add('hidden');
+        analyzeMultipleBtn.disabled = false;
+      }
+    });
+    
+    // Display analysis results - Single mode
+    function displayResults(data) {
+      // Description
+      desc.textContent = data.description || 'No description available';
+      
+      // Keywords
+      keywordsContainer.innerHTML = '';
+      if (data.keywords && Array.isArray(data.keywords) && data.keywords.length > 0) {
+        data.keywords.forEach(keyword => {
+          if (keyword && keyword.trim()) {
+            const tag = document.createElement('span');
+            tag.className = 'px-2 py-1 bg-gray-200 text-gray-800 text-sm rounded-md';
+            tag.textContent = keyword.trim();
+            keywordsContainer.appendChild(tag);
+          }
+        });
+      } else {
+        keywordsContainer.textContent = 'No keywords available';
+      }
+      
+      result.classList.remove('hidden');
+      
+      // Scroll to results
+      result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    // Display analysis results - Multiple mode
+    function displayMultipleResults(results) {
+      // Clear previous results
+      imageTabs.innerHTML = '';
+      tabContents.innerHTML = '';
+      
+      console.log("Processing results:", results); // Debugging
+      
+      // Check if results is valid
+      if (!results || !Array.isArray(results) || results.length === 0) {
+        showNotification('No valid results returned from server', 'error');
+        return;
+      }
+      
+      // Create tabs and content for each result
+      results.forEach((result, index) => {
+        // Create tab
+        const tab = document.createElement('button');
+        tab.className = 'px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 whitespace-nowrap';
+        tab.setAttribute('data-tab', `tab-${index}`);
+        if (index === 0) tab.classList.add('border-b-2', 'border-primary-600', 'text-primary-700');
+        
+        const filename = result.filename || `Image ${index + 1}`;
+        tab.innerHTML = `
+          <span class="truncate max-w-xs">${filename}</span>
+        `;
+        
+        imageTabs.appendChild(tab);
+        
+        // Create content
+        const content = document.createElement('div');
+        content.className = 'tab-content' + (index === 0 ? '' : ' hidden');
+        content.id = `tab-${index}`;
+        
+        if (result.error) {
+          content.innerHTML = `
+            <div class="p-4 bg-red-50 text-red-700 rounded-md">
+              <p><i class="fas fa-exclamation-circle mr-2"></i> Error: ${result.error}</p>
+            </div>
+          `;
+        } else {
+          let keywordsHTML = '';
+          
+          if (result.keywords && Array.isArray(result.keywords) && result.keywords.length > 0) {
+            keywordsHTML = result.keywords.map(kw => 
+              `<span class="px-2 py-1 bg-gray-200 text-gray-800 text-sm rounded-md">${kw}</span>`
+            ).join('');
+          } else {
+            keywordsHTML = '<span>No keywords available</span>';
+          }
+          
+          content.innerHTML = `
+            <div class="mt-4">
+              <h4 class="text-sm font-medium text-gray-700 uppercase tracking-wide">Description</h4>
+              <div class="mt-2 p-4 bg-gray-50 rounded-md">
+                <p class="text-gray-800">${result.description || 'No description available'}</p>
+                <button class="copy-desc-btn mt-3 inline-flex items-center text-sm text-primary-600 hover:text-primary-800" data-text="${result.description || ''}">
+                  <i class="far fa-copy mr-1"></i> Copy
+                </button>
+              </div>
+            </div>
+            
+            <div class="mt-6">
+              <h4 class="text-sm font-medium text-gray-700 uppercase tracking-wide">Keywords</h4>
+              <div class="mt-2 p-4 bg-gray-50 rounded-md">
+                <div class="flex flex-wrap gap-2">
+                  ${keywordsHTML}
+                </div>
+                <button class="copy-keywords-btn mt-3 inline-flex items-center text-sm text-primary-600 hover:text-primary-800" data-text="${result.keywords ? result.keywords.join(', ') : ''}">
+                  <i class="far fa-copy mr-1"></i> Copy All
+                </button>
+              </div>
+            </div>
+          `;
+        }
+        
+        tabContents.appendChild(content);
+        
+        // Update preview badge to completed
+        updatePreviewBadge(result.filename, 'completed');
+      });
+      
+      // Add tab switching functionality
+      document.querySelectorAll('[data-tab]').forEach(tab => {
+        tab.addEventListener('click', function() {
+          // Remove active class from all tabs
+          document.querySelectorAll('[data-tab]').forEach(t => {
+            t.classList.remove('border-b-2', 'border-primary-600', 'text-primary-700');
+          });
+          
+          // Add active class to clicked tab
+          this.classList.add('border-b-2', 'border-primary-600', 'text-primary-700');
+          
+          // Hide all tab contents
+          document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.add('hidden');
+          });
+          
+          // Show selected tab content
+          document.getElementById(this.getAttribute('data-tab')).classList.remove('hidden');
+        });
+      });
+      
+      // Add copy functionality
+      document.querySelectorAll('.copy-desc-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          copyToClipboard(this.getAttribute('data-text'));
+          showNotification('Description copied to clipboard!');
+        });
+      });
+      
+      document.querySelectorAll('.copy-keywords-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          copyToClipboard(this.getAttribute('data-text'));
+          showNotification('Keywords copied to clipboard!');
+        });
+      });
+      
+      // Reset UI
+      multiBtnText.textContent = 'Upload & Analyze All Images';
+      multiBtnLoader.classList.add('hidden');
+      analyzeMultipleBtn.disabled = false;
+      
+      multiResults.classList.remove('hidden');
+      
+      // Scroll to results
+      multiResults.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      
+      showNotification(`Successfully analyzed ${results.length} images!`);
+    }
+    
+    // Copy functionality - Single mode
+    copyDesc.addEventListener('click', function() {
+      copyToClipboard(desc.textContent);
+      showNotification('Description copied to clipboard!');
+    });
+    
+    copyKeywords.addEventListener('click', function() {
+      const keywords = Array.from(keywordsContainer.querySelectorAll('span'))
+        .map(span => span.textContent)
+        .join(', ');
+      copyToClipboard(keywords);
+      showNotification('Keywords copied to clipboard!');
+    });
+    
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).catch(err => {
+        console.error('Could not copy text: ', err);
+      });
+    }
+    
+    // Notification
+    function showNotification(message, type = 'success') {
+      const notificationText = document.getElementById('notification-text');
+      notification.className = 'fixed bottom-4 right-4 p-4 rounded-md shadow-lg flex items-center transition-transform duration-300 z-50';
+      
+      if (type === 'success') {
+        notification.classList.add('bg-green-100', 'text-green-700');
+        notification.querySelector('i').className = 'fas fa-check-circle mr-2';
+      } else {
+        notification.classList.add('bg-red-100', 'text-red-700');
+        notification.querySelector('i').className = 'fas fa-exclamation-circle mr-2';
+      }
+      
+      notificationText.textContent = message;
+      notification.style.transform = 'translateY(0)';
+      
+      setTimeout(() => {
+        notification.style.transform = 'translateY(100%)';
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
