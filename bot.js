@@ -1,7 +1,10 @@
 // Konfigurasi API
-const API_URL = 'https://plots-guitars-grants-commander.trycloudflare.com'; // Ganti 0.0.0.0 dengan localhost
+const API_URL = 'http://127.0.0.1:8000'; // Ganti menggunakan http://127.0.0.1:8000 jika backend dijalankan di lokal pc
 const API_TIMEOUT = 300000; // 5 menit timeout untuk file besar
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 5MB batas ukuran file untuk mempercepat upload
+const POLLING_INTERVAL_SMALL = 1000; // Polling interval untuk jumlah gambar kecil (1 detik)
+const POLLING_INTERVAL_LARGE = 3000; // Polling interval untuk jumlah gambar besar (3 detik)
+const POLLING_INTERVAL_MAX = 10000; // Polling interval maksimum (10 detik)
 
 // Tracking waktu
 let processingStartTime = 0;
@@ -552,10 +555,14 @@ function calculateActualProgress(status) {
   return Math.min(99, Math.round(totalProgress)); // Maksimal 99% sampai benar-benar selesai
 }
 
-// Function to poll queue status
 // Function to poll queue status with retry
-async function pollQueueStatus(queueId, retryCount = 0) {
+async function pollQueueStatus(queueId, retryCount = 0, totalImages = 0) {
   try {
+    // Tentukan interval polling berdasarkan jumlah gambar
+    const baseInterval = totalImages > 20 ? POLLING_INTERVAL_LARGE : POLLING_INTERVAL_SMALL;
+    // Jika retry, tambahkan backoff
+    const pollingInterval = retryCount > 0 ? Math.min(baseInterval * Math.pow(1.5, retryCount), POLLING_INTERVAL_MAX) : baseInterval;
+    
     const res = await fetchWithTimeout(`${API_URL}/queue-status/${queueId}`);
     
     if (res.status === 404 && retryCount < 5) {
@@ -563,7 +570,7 @@ async function pollQueueStatus(queueId, retryCount = 0) {
       // Exponential backoff for retries
       const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return pollQueueStatus(queueId, retryCount + 1);
+      return pollQueueStatus(queueId, retryCount + 1, totalImages);
     }
     
     if (!res.ok) {
@@ -586,11 +593,30 @@ async function pollQueueStatus(queueId, retryCount = 0) {
     // Update UI with current status
     updateQueueStatusUI(data);
     
+    // Tambahkan informasi estimasi waktu jika tersedia
+    if (data.estimated_time_remaining) {
+      const minutes = Math.floor(data.estimated_time_remaining / 60);
+      const seconds = data.estimated_time_remaining % 60;
+      let timeText = "";
+      
+      if (minutes > 0) {
+        timeText = `${minutes} menit ${seconds} detik`;
+      } else {
+        timeText = `${seconds} detik`;
+      }
+      
+      queueStatusText.textContent = `Memproses gambar dalam antrian... (${data.progress}%) - Perkiraan sisa waktu: ${timeText}`;
+    }
+    
+    // Update antrian informasi jika tersedia
+    if (data.queue_size > 0) {
+      showNotification(`Ada ${data.queue_size} gambar dalam antrian. API Gemini dibatasi 15 request/menit, harap bersabar.`, "info");
+    }
+    
     // If processing is still ongoing, poll again after a delay
     if (data.status !== 'completed' && data.status !== 'error') {
-      // Gunakan interval polling yang lebih lama untuk antrian besar
-      const pollingInterval = data.total_files > 20 ? 3000 : 1000;
-      setTimeout(() => pollQueueStatus(queueId), pollingInterval);
+      // Gunakan interval polling yang dinamis
+      setTimeout(() => pollQueueStatus(queueId, 0, totalImages), pollingInterval);
     } else {
       // Processing completed, show results
       if (data.status === 'completed' && data.results) {
@@ -626,7 +652,7 @@ async function pollQueueStatus(queueId, retryCount = 0) {
       showNotification(`Error saat memeriksa status: mencoba lagi dalam ${delay/1000} detik...`, "warning");
       
       await new Promise(resolve => setTimeout(resolve, delay));
-      return pollQueueStatus(queueId, retryCount + 1);
+      return pollQueueStatus(queueId, retryCount + 1, totalImages);
     } else {
       showNotification('Gagal memeriksa status pemrosesan setelah beberapa percobaan', 'error');
       
@@ -721,12 +747,26 @@ function updateQueueDetails(status) {
     // Hitung waktu yang sudah berjalan sejak mulai pemrosesan
     const elapsedTime = processingStartTime ? Date.now() - processingStartTime : 0;
     
+    // Tambahkan informasi tentang antrian dan estimasi
+    let estimationHTML = '';
+    if (status.estimated_time_remaining) {
+      const minutes = Math.floor(status.estimated_time_remaining / 60);
+      const seconds = status.estimated_time_remaining % 60;
+      
+      estimationHTML = `
+        <p class="mt-2 font-medium">Informasi Antrian:</p>
+        <p>• Perkiraan waktu tersisa: ${minutes > 0 ? `${minutes} menit ${seconds} detik` : `${seconds} detik`}</p>
+        <p class="text-xs text-amber-600">• Catatan: API Gemini dibatasi 15 request/menit</p>
+      `;
+    }
+    
     detailsHTML = `
       <div class="text-sm text-gray-600">
         <p class="font-medium">Progress Antrian:</p>
         <p>• Memproses gambar ${status.current_file} dari ${status.total_files}</p>
         <p>• Progress keseluruhan: ${status.progress}%</p>
         <p>• Waktu berjalan: ${formatTime(elapsedTime)}</p>
+        ${estimationHTML}
       </div>
     `;
     
@@ -799,6 +839,11 @@ analyzeMultipleBtn.addEventListener('click', async function() {
   try {
     console.log(`Mengirim ${multiCompressedFiles.length} file ke server...`);
     
+    // Tampilkan pesan khusus jika jumlah file > 15
+    if (multiCompressedFiles.length > 15) {
+      showNotification(`Memproses ${multiCompressedFiles.length} gambar (melebihi batas 15/menit). Sistem akan mengantri otomatis.`, "info");
+    }
+    
     const res = await fetchWithTimeout(`${API_URL}/analyze-multiple-images`, {
       method: 'POST',
       body: formData
@@ -813,8 +858,15 @@ analyzeMultipleBtn.addEventListener('click', async function() {
     console.log('Antrian dimulai:', data);
     
     if (data.queue_id) {
-      // Start polling for status updates
-      pollQueueStatus(data.queue_id);
+      // Jika ada estimasi waktu, tampilkan
+      if (data.estimated_seconds) {
+        const minutes = Math.floor(data.estimated_seconds / 60);
+        const seconds = data.estimated_seconds % 60;
+        showNotification(`Perkiraan waktu pemrosesan: ${minutes > 0 ? `${minutes} menit ${seconds} detik` : `${seconds} detik`}`);
+      }
+      
+      // Start polling for status updates, kirim juga jumlah gambar
+      pollQueueStatus(data.queue_id, 0, multiCompressedFiles.length);
     } else {
       throw new Error('Tidak ada ID antrian yang diterima dari server');
     }
@@ -1342,5 +1394,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
-
 });
