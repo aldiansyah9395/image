@@ -1,5 +1,5 @@
 // Konfigurasi API
-const API_URL = 'http://localhost:8000'; // Ganti 0.0.0.0 dengan localhost
+const API_URL = 'https://plots-guitars-grants-commander.trycloudflare.com'; // Ganti 0.0.0.0 dengan localhost
 const API_TIMEOUT = 300000; // 5 menit timeout untuk file besar
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 5MB batas ukuran file untuk mempercepat upload
 
@@ -1342,4 +1342,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
+
 });
