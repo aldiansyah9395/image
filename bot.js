@@ -1,7 +1,7 @@
 // Konfigurasi API
 const API_URL = 'https://civil-noise-hotel-borders.trycloudflare.com'; // Ganti menggunakan http://127.0.0.1:8000 jika backend dijalankan di lokal pc
 const API_TIMEOUT = 300000; // 5 menit timeout untuk file besar
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 5MB batas ukuran file untuk mempercepat upload
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 5MB batas ukuran file untuk mempercepat upload
 const POLLING_INTERVAL_SMALL = 1000; // Polling interval untuk jumlah gambar kecil (1 detik)
 const POLLING_INTERVAL_LARGE = 3000; // Polling interval untuk jumlah gambar besar (3 detik)
 const POLLING_INTERVAL_MAX = 10000; // Polling interval maksimum (10 detik)
@@ -11,6 +11,7 @@ let processingStartTime = 0;
 let imageProcessingTimes = {};
 // Untuk menyimpan file yang sudah dikompresi
 let multiCompressedFiles = [];
+let multiResultsData = [];
 
 // DOM elements - Single mode
 const singleModeBtn = document.getElementById('single-mode-btn');
@@ -1101,6 +1102,8 @@ function displayMultipleResults(results, totalProcessingTime) {
     return;
   }
 
+  
+
   // Filter out null results
   const validResults = results.filter(result => result !== null);
   
@@ -1319,6 +1322,10 @@ function displayMultipleResults(results, totalProcessingTime) {
       showNotification('Kata kunci disalin ke clipboard!');
     });
   });
+
+  // Di dalam fungsi displayMultipleResults (setelah hasil valid didapat):
+  multiResultsData = validResults; // Simpan data untuk export
+  document.getElementById('export-metadata-btn').disabled = false; // Aktifkan tombol export
   
   // Reset UI
   multiBtnText.textContent = 'Upload & Analyze All Images';
@@ -1394,6 +1401,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
+});
+
+function exportMetadataAsCSV(results) {
+  if (!results || !results.length) return;
+  const header = ['Filename', 'Description', 'Keywords', 'Processing Time'];
+  const rows = results.map(r =>
+    [
+      `"${r.filename || ''}"`,
+      `"${r.description ? r.description.replace(/"/g, '""') : ''}"`,
+      `"${(r.keywords || []).join(', ')}"`,
+      `"${r.processingTime || ''}"`
+    ].join(',')
+  );
+  const csvContent = [header.join(','), ...rows].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'image_metadata.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Event handler tombol export
+document.getElementById('export-metadata-btn').addEventListener('click', function() {
+  exportMetadataAsCSV(multiResultsData);
 });
 
 
