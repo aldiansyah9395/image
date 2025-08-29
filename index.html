@@ -196,7 +196,14 @@
       <!-- Results Section - Multiple Images -->
       <div id="multi-results" class="hidden px-4 py-5 sm:p-6">
         <h3 class="text-lg font-medium text-gray-900 border-b pb-3">Analysis Results</h3>
-        
+        <!-- Tambahkan tombol export metadata -->
+        <div class="mb-4 flex justify-end">
+          <button id="export-metadata-btn"
+            class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled>
+            <i class="fas fa-file-export mr-2"></i> Export Metadata
+          </button>
+        </div>
         <div class="tabs-header mt-4 border-b border-gray-200 overflow-x-auto">
           <div id="image-tabs" class="flex">
             <!-- Tabs will be added here -->
