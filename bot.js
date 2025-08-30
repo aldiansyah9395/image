@@ -291,10 +291,23 @@ multiFileInput.addEventListener('change', function() {
   }
 });
 
+// Display analysis results - Multiple mode
 async function handleMultipleFiles(files) {
   // Clear previous previews
   multiPreviewContainer.innerHTML = '';
   multiCompressedFiles = [];
+  
+  // Hitung total file valid secara manual (FileList bukan Array)
+  let totalValidFiles = 0;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.type.match('image.*') && file.size <= MAX_FILE_SIZE) {
+      totalValidFiles++;
+    }
+  }
+  
+  // Variabel untuk melacak progres
+  let processedCount = 0;
   
   // Muat dan kompresi file
   const compressionPromises = [];
@@ -302,7 +315,7 @@ async function handleMultipleFiles(files) {
   let validFiles = 0;
   let invalidSizeFiles = 0;
   
-  // Buat elemen loading
+  // Buat elemen loading dengan progres - HANYA SATU INDIKATOR
   const loadingElement = document.createElement('div');
   loadingElement.className = 'col-span-full text-center py-6';
   loadingElement.innerHTML = `
@@ -313,11 +326,14 @@ async function handleMultipleFiles(files) {
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
       </div>
-      <span>Memproses gambar...</span>
+      <span id="processing-status">Memproses gambar 0/${totalValidFiles}</span>
     </div>
   `;
   
   multiPreviewContainer.appendChild(loadingElement);
+  
+  // HAPUS kode yang membuat elemen progress terpisah
+  // Tidak perlu membuat progressElement lagi
   
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
@@ -343,6 +359,13 @@ async function handleMultipleFiles(files) {
         filename: file.name
       });
       
+      // Update progres - HANYA UPDATE SATU ELEMEN
+      processedCount++;
+      const processingStatus = document.getElementById('processing-status');
+      if (processingStatus) {
+        processingStatus.textContent = `Memproses gambar ${processedCount}/${totalValidFiles}`;
+      }
+      
       return { file, compressedFile };
     }).catch(err => {
       console.error(`Error compressing ${file.name}:`, err);
@@ -351,6 +374,13 @@ async function handleMultipleFiles(files) {
         compressed: file, // Use original if compression fails
         filename: file.name
       });
+      
+      // Update progres meski error - HANYA UPDATE SATU ELEMEN
+      processedCount++;
+      const processingStatus = document.getElementById('processing-status');
+      if (processingStatus) {
+        processingStatus.textContent = `Memproses gambar ${processedCount}/${totalValidFiles}`;
+      }
       
       return { file, compressedFile: file };
     });
@@ -362,14 +392,16 @@ async function handleMultipleFiles(files) {
     // Tunggu semua proses kompresi selesai
     const compressedResults = await Promise.all(compressionPromises);
     
-    // Hapus loading element
+    // Hapus loading element - HANYA HAPUS SATU ELEMEN
     multiPreviewContainer.removeChild(loadingElement);
     
     // Preview images
     for (const { file, compressedFile } of compressedResults) {
       const previewWrapper = document.createElement('div');
-      previewWrapper.className = 'relative border rounded-md overflow-hidden h-32';
+      // Ubah class dan tambahkan data-filename untuk hover effect
+      previewWrapper.className = 'relative border rounded-md overflow-hidden h-32 preview-wrapper';
       previewWrapper.setAttribute('data-filename', file.name);
+      previewWrapper.setAttribute('data-file-id', generateFileId(file.name));
       
       const img = document.createElement('img');
       img.className = 'w-full h-full object-cover';
@@ -410,6 +442,8 @@ async function handleMultipleFiles(files) {
       previewWrapper.appendChild(timeBadge);
       multiPreviewContainer.appendChild(previewWrapper);
     }
+    
+    // Kode selanjutnya tetap sama...
     
     // Wait for all image previews to load
     await Promise.all(previewPromises);
@@ -909,161 +943,7 @@ function displayResults(data) {
   result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// Display analysis results - Multiple mode
-async function handleMultipleFiles(files) {
-  // Clear previous previews
-  multiPreviewContainer.innerHTML = '';
-  multiCompressedFiles = [];
-  
-  // Muat dan kompresi file
-  const compressionPromises = [];
-  const previewPromises = [];
-  let validFiles = 0;
-  let invalidSizeFiles = 0;
-  
-  // Buat elemen loading
-  const loadingElement = document.createElement('div');
-  loadingElement.className = 'col-span-full text-center py-6';
-  loadingElement.innerHTML = `
-    <div class="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-md">
-      <div class="animate-spin mr-3 h-5 w-5 text-blue-600">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-      </div>
-      <span>Memproses gambar...</span>
-    </div>
-  `;
-  
-  multiPreviewContainer.appendChild(loadingElement);
-  
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    
-    // Check if file is an image
-    if (!file.type.match('image.*')) {
-      continue;
-    }
-    
-    // Check file size
-    if (file.size > MAX_FILE_SIZE) {
-      invalidSizeFiles++;
-      continue;
-    }
-    
-    validFiles++;
-    
-    // Compress image
-    const compressionPromise = compressImage(file).then(compressedFile => {
-      multiCompressedFiles.push({
-        original: file,
-        compressed: compressedFile,
-        filename: file.name
-      });
-      
-      return { file, compressedFile };
-    }).catch(err => {
-      console.error(`Error compressing ${file.name}:`, err);
-      multiCompressedFiles.push({
-        original: file,
-        compressed: file, // Use original if compression fails
-        filename: file.name
-      });
-      
-      return { file, compressedFile: file };
-    });
-    
-    compressionPromises.push(compressionPromise);
-  }
-  
-  try {
-    // Tunggu semua proses kompresi selesai
-    const compressedResults = await Promise.all(compressionPromises);
-    
-    // Hapus loading element
-    multiPreviewContainer.removeChild(loadingElement);
-    
-    // Preview images
-    for (const { file, compressedFile } of compressedResults) {
-      const previewWrapper = document.createElement('div');
-      // Ubah class dan tambahkan data-filename untuk hover effect
-      previewWrapper.className = 'relative border rounded-md overflow-hidden h-32 preview-wrapper';
-      previewWrapper.setAttribute('data-filename', file.name);
-      previewWrapper.setAttribute('data-file-id', generateFileId(file.name));
-      
-      const img = document.createElement('img');
-      img.className = 'w-full h-full object-cover';
-      
-      const reader = new FileReader();
-      const readerPromise = new Promise((resolve) => {
-        reader.onload = function(e) {
-          img.src = e.target.result;
-          resolve();
-        };
-      });
-      reader.readAsDataURL(compressedFile);
-      
-      previewPromises.push(readerPromise);
-      
-      // Tambahkan status badge
-      const statusBadge = document.createElement('div');
-      statusBadge.className = 'file-status-badge bg-gray-200 text-gray-800';
-      statusBadge.textContent = 'Pending';
-      
-      // Tambahkan badge untuk waktu pemrosesan
-      const timeBadge = document.createElement('div');
-      timeBadge.className = 'absolute top-1 left-1 bg-gray-800 bg-opacity-75 text-white text-xs px-2 py-1 rounded-md hidden';
-      timeBadge.setAttribute('data-time-badge', file.name);
-      
-      // Tambahkan info kompresi jika berhasil dikompresi
-      if (compressedFile.size < file.size) {
-        const originalSizeMB = (file.size / 1024 / 1024).toFixed(2);
-        const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
-        const compressionBadge = document.createElement('div');
-        compressionBadge.className = 'absolute bottom-1 right-1 bg-green-800 bg-opacity-75 text-white text-xs px-2 py-1 rounded-md';
-        compressionBadge.textContent = `${(100 - (compressedFile.size / file.size * 100)).toFixed(0)}% ↓`;
-        previewWrapper.appendChild(compressionBadge);
-      }
-      
-      previewWrapper.appendChild(img);
-      previewWrapper.appendChild(statusBadge);
-      previewWrapper.appendChild(timeBadge);
-      multiPreviewContainer.appendChild(previewWrapper);
-    }
-    
-    // Wait for all image previews to load
-    await Promise.all(previewPromises);
-    
-    // Enable analyze button if there are valid files
-    analyzeMultipleBtn.disabled = validFiles === 0;
-    
-    if (validFiles === 0) {
-      showNotification('Silakan pilih minimal satu file gambar yang valid', 'error');
-    }
-    
-    if (invalidSizeFiles > 0) {
-      showNotification(`${invalidSizeFiles} file tidak diproses karena melebihi batas ukuran (${MAX_FILE_SIZE/1024/1024}MB)`, 'error');
-    }
-    
-    // Tampilkan info kompresi jika berhasil
-    const totalOriginalSize = multiCompressedFiles.reduce((acc, item) => acc + item.original.size, 0);
-    const totalCompressedSize = multiCompressedFiles.reduce((acc, item) => acc + item.compressed.size, 0);
-    
-    if (totalCompressedSize < totalOriginalSize) {
-      const originalSizeMB = (totalOriginalSize / 1024 / 1024).toFixed(2);
-      const compressedSizeMB = (totalCompressedSize / 1024 / 1024).toFixed(2);
-      const savingsPercent = ((totalOriginalSize - totalCompressedSize) / totalOriginalSize * 100).toFixed(0);
-      
-      showNotification(`Ukuran gambar terkompresi dari ${originalSizeMB}MB menjadi ${compressedSizeMB}MB (hemat ${savingsPercent}%)`);
-    }
-    
-  } catch (err) {
-    console.error('Error processing files:', err);
-    multiPreviewContainer.innerHTML = '';
-    showNotification('Error saat memproses gambar', 'error');
-  }
-}
+
 
 // Tambahkan fungsi untuk menghasilkan ID unik dari nama file
 function generateFileId(filename) {
@@ -1430,7 +1310,6 @@ function exportMetadataAsCSV(results) {
 document.getElementById('export-metadata-btn').addEventListener('click', function() {
   exportMetadataAsCSV(multiResultsData);
 });
-
 
 
 
