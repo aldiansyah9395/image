@@ -1,5 +1,5 @@
 // Konfigurasi API
-const API_URL = 'https://shades-sixth-remedy-regards.trycloudflare.com'; // Ganti menggunakan http://127.0.0.1:8000 jika backend dijalankan di lokal pc
+const API_URL = 'http://127.0.0.1:8000'; // Ganti menggunakan http://127.0.0.1:8000 jika backend dijalankan di lokal pc
 const API_TIMEOUT = 300000; // 5 menit timeout untuk file besar
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 5MB batas ukuran file untuk mempercepat upload
 const POLLING_INTERVAL_SMALL = 1000; // Polling interval untuk jumlah gambar kecil (1 detik)
@@ -1339,3 +1339,4 @@ function exportMetadataAsCSV(results) {
 document.getElementById('export-metadata-btn').addEventListener('click', function() {
   exportMetadataAsCSV(multiResultsData);
 });
+
