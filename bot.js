@@ -332,6 +332,9 @@ async function handleMultipleFiles(files) {
   
   multiPreviewContainer.appendChild(loadingElement);
   
+  // HAPUS kode yang membuat elemen progress terpisah
+  // Tidak perlu membuat progressElement lagi
+  
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     
@@ -424,14 +427,6 @@ async function handleMultipleFiles(files) {
       timeBadge.className = 'absolute top-1 left-1 bg-gray-800 bg-opacity-75 text-white text-xs px-2 py-1 rounded-md hidden';
       timeBadge.setAttribute('data-time-badge', file.name);
       
-      // Tambahkan progress bar mini (awalnya tersembunyi)
-      const progressBarMini = document.createElement('div');
-      progressBarMini.className = 'absolute bottom-0 left-0 right-0 h-1 bg-blue-100 hidden mini-progress-container';
-      const progressBarFill = document.createElement('div');
-      progressBarFill.className = 'h-full bg-blue-500 transition-all duration-300';
-      progressBarFill.style.width = '0%';
-      progressBarMini.appendChild(progressBarFill);
-      
       // Tambahkan info kompresi jika berhasil dikompresi
       if (compressedFile.size < file.size) {
         const originalSizeMB = (file.size / 1024 / 1024).toFixed(2);
@@ -445,9 +440,10 @@ async function handleMultipleFiles(files) {
       previewWrapper.appendChild(img);
       previewWrapper.appendChild(statusBadge);
       previewWrapper.appendChild(timeBadge);
-      previewWrapper.appendChild(progressBarMini);
       multiPreviewContainer.appendChild(previewWrapper);
     }
+    
+    // Kode selanjutnya tetap sama...
     
     // Wait for all image previews to load
     await Promise.all(previewPromises);
@@ -535,7 +531,6 @@ analyzeBtn.addEventListener('click', async function() {
 });
 
 // Function to update preview status badges
-// Function to update preview status badges
 function updatePreviewBadge(filename, status, isProcessing = false, processingTime = null) {
   const previewElement = [...multiPreviewContainer.children].find(
     el => el.getAttribute('data-filename') === filename
@@ -549,40 +544,18 @@ function updatePreviewBadge(filename, status, isProcessing = false, processingTi
   // Reset classes
   statusBadge.className = 'file-status-badge';
   
-  // Tambahkan atau update progress bar mini
-  let progressBar = previewElement.querySelector('.mini-progress');
-  
   switch(status) {
     case 'pending':
       statusBadge.classList.add('bg-gray-200', 'text-gray-800');
       statusBadge.textContent = 'Pending';
-      // Hapus progress bar jika ada
-      if (progressBar) progressBar.remove();
       break;
     case 'processing':
       statusBadge.classList.add('bg-blue-200', 'text-blue-800', isProcessing ? 'pulse-animation' : '');
       statusBadge.textContent = 'Processing';
-      
-      // Tambahkan atau update progress bar mini
-      if (!progressBar) {
-        progressBar = document.createElement('div');
-        progressBar.className = 'mini-progress absolute bottom-0 left-0 right-0 h-1 bg-blue-100';
-        const progressFill = document.createElement('div');
-        progressFill.className = 'h-full bg-blue-500 transition-all duration-300';
-        progressFill.style.width = '30%'; // Default progress
-        progressBar.appendChild(progressFill);
-        previewElement.appendChild(progressBar);
-      } else {
-        const progressFill = progressBar.querySelector('div');
-        if (progressFill) progressFill.style.width = '30%';
-      }
       break;
     case 'completed':
       statusBadge.classList.add('bg-green-200', 'text-green-800');
       statusBadge.textContent = 'Completed';
-      
-      // Hapus progress bar jika ada
-      if (progressBar) progressBar.remove();
       
       // Tampilkan waktu pemrosesan jika tersedia
       if (processingTime) {
@@ -596,9 +569,6 @@ function updatePreviewBadge(filename, status, isProcessing = false, processingTi
     case 'error':
       statusBadge.classList.add('bg-red-200', 'text-red-800');
       statusBadge.textContent = 'Error';
-      
-      // Hapus progress bar jika ada
-      if (progressBar) progressBar.remove();
       break;
   }
 }
@@ -698,7 +668,7 @@ async function pollQueueStatus(queueId, retryCount = 0, totalImages = 0) {
         
         if (failCount > 0) {
           showNotification(`Selesai memproses ${successCount} gambar (${failCount} gagal) dalam ${formatTime(totalProcessingTime)}`, 
-                          failCount > successCount ? "error" : "warning");
+                           failCount > successCount ? "error" : "warning");
         } else {
           showNotification(`Berhasil memproses ${successCount} gambar dalam ${formatTime(totalProcessingTime)}`);
         }
@@ -771,20 +741,6 @@ function updateQueueStatusUI(status) {
         // File yang sedang diproses
         else if (i + 1 === status.current_file) {
           updatePreviewBadge(filename, 'processing', true);
-          
-          // Update progress bar mini untuk file yang sedang diproses
-          const previewElement = fileElements[i];
-          const progressBarMini = previewElement.querySelector('.mini-progress-container');
-          const progressBarFill = progressBarMini ? progressBarMini.querySelector('div') : null;
-          
-          if (progressBarMini && progressBarFill) {
-            progressBarMini.classList.remove('hidden');
-            // Animasikan progress dari 10% sampai 70%
-            progressBarFill.style.width = '40%';
-            setTimeout(() => {
-              progressBarFill.style.width = '70%';
-            }, 500);
-          }
         } 
         // File yang belum diproses
         else {
@@ -849,21 +805,12 @@ function updateQueueDetails(status) {
       </div>
     `;
     
-    // Tampilkan filename gambar yang sedang diproses
-    if (status.current_job_filename) {
-      detailsHTML += `
-        <div class="mt-2 text-sm text-blue-600">
-          <p>• Sedang memproses: ${status.current_job_filename}</p>
-        </div>
-      `;
-    }
-    
     // Tambahkan detail waktu per file yang sudah selesai
     if (Object.keys(imageProcessingTimes).length > 0) {
       detailsHTML += `
         <div class="mt-3">
           <p class="font-medium text-sm text-gray-600">Waktu Pemrosesan:</p>
-          <div class="mt-1 text-xs space-y-1 max-h-36 overflow-y-auto">
+          <div class="mt-1 text-xs space-y-1">
       `;
       
       for (const [filename, timeData] of Object.entries(imageProcessingTimes)) {
@@ -996,6 +943,8 @@ function displayResults(data) {
   result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+
+
 // Tambahkan fungsi untuk menghasilkan ID unik dari nama file
 function generateFileId(filename) {
   return filename.replace(/[^a-z0-9]/gi, '_').toLowerCase();
@@ -1032,6 +981,8 @@ function displayMultipleResults(results, totalProcessingTime) {
     showNotification('Tidak ada hasil valid yang dikembalikan dari server', 'error');
     return;
   }
+
+  
 
   // Filter out null results
   const validResults = results.filter(result => result !== null);
@@ -1154,6 +1105,8 @@ function displayMultipleResults(results, totalProcessingTime) {
     }, 100);
   }
   
+  // Lanjutkan kode yang sudah ada di fungsi displayMultipleResults...
+  
   // Gunakan waktu total dari server jika tersedia
   const serverTotalTime = totalProcessingTime || (results[0] && results[0].total_processing_time);
   const actualTotalTime = serverTotalTime || (Date.now() - processingStartTime);
@@ -1196,6 +1149,27 @@ function displayMultipleResults(results, totalProcessingTime) {
       if (filename) {
         highlightMatchingPreview(filename);
       }
+    });
+  });
+  
+  // Add tab switching functionality
+  document.querySelectorAll('[data-tab]').forEach(tab => {
+    tab.addEventListener('click', function() {
+      // Remove active class from all tabs
+      document.querySelectorAll('[data-tab]').forEach(t => {
+        t.classList.remove('border-b-2', 'border-primary-600', 'text-primary-700');
+      });
+      
+      // Add active class to clicked tab
+      this.classList.add('border-b-2', 'border-primary-600', 'text-primary-700');
+      
+      // Hide all tab contents
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+      });
+      
+      // Show selected tab content
+      document.getElementById(this.getAttribute('data-tab')).classList.remove('hidden');
     });
   });
   
@@ -1274,9 +1248,6 @@ function showNotification(message, type = 'success') {
   if (type === 'success') {
     notification.classList.add('bg-green-100', 'text-green-700');
     notification.querySelector('i').className = 'fas fa-check-circle mr-2';
-  } else if (type === 'warning') {
-    notification.classList.add('bg-yellow-100', 'text-yellow-700');
-    notification.querySelector('i').className = 'fas fa-exclamation-triangle mr-2';
   } else {
     notification.classList.add('bg-red-100', 'text-red-700');
     notification.querySelector('i').className = 'fas fa-exclamation-circle mr-2';
@@ -1339,4 +1310,3 @@ function exportMetadataAsCSV(results) {
 document.getElementById('export-metadata-btn').addEventListener('click', function() {
   exportMetadataAsCSV(multiResultsData);
 });
-
